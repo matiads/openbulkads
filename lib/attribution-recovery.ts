@@ -1,0 +1,17 @@
+import {MetaError} from './meta-core';
+export const RECOVERY_FIELDS='id,account_id,campaign_id,name,destination_type,optimization_goal,billing_event,targeting,promoted_object,attribution_spec,daily_budget,lifetime_budget,bid_strategy,bid_amount,bid_constraints,pacing_type,start_time,end_time,is_dynamic_creative,adset_schedule,frequency_control_specs,optimization_sub_event,dsa_beneficiary,dsa_payor';
+export function isAttributionFailure(job:any){const state=typeof job.state==='string'?JSON.parse(job.state):job.state;if(job.kind!=='template'||state?.stage!=='copy_sets'||!state.campaignId)return false;const legacy=job.status==='uncertain'&&state.autoAttribution&&!state.attributionRecovery&&state.error==='Meta no devolvió la configuración necesaria para recuperar el conjunto.';return legacy||(job.status==='failed'&&(Boolean(state.attributionRejected)||/atribuci[oó]n|attribution/i.test(state.error||'')&&/1\s*d[ií]a|1\s*day/i.test(state.error||'')));}
+export function buildRecovery(source:any,campaign:any,options:{allowActiveCampaign?:boolean}={}){
+ if(!['WHATSAPP','INSTAGRAM_DIRECT','MESSENGER'].includes(source.destination_type)||source.optimization_goal!=='CONVERSATIONS')throw new Error('La recuperación de atribución está disponible para conjuntos de mensajes optimizados para conversaciones.');
+ if(source.is_dynamic_creative||source.adset_schedule?.length||source.frequency_control_specs?.length)throw new Error('Este conjunto tiene una configuración avanzada. Revisalo en Ads Manager antes de recrearlo.');
+ if(campaign.status!=='PAUSED'&&!(options.allowActiveCampaign&&campaign.status==='ACTIVE'))throw new Error('La campaña de destino debe estar pausada para recuperar la copia.');
+ const missing=['targeting','promoted_object','billing_event'].filter(k=>!source[k]);if(missing.length)throw new MetaError('Meta no devolvió los campos necesarios para recuperar el conjunto: '+missing.join(', ')+'.',100,'',false);
+ const params:any={name:source.name,campaign_id:campaign.id,destination_type:source.destination_type,optimization_goal:source.optimization_goal,billing_event:source.billing_event,targeting:structuredClone(source.targeting),promoted_object:structuredClone(source.promoted_object),attribution_spec:[{event_type:'CLICK_THROUGH',window_days:1}],status:'PAUSED'};
+ for(const k of ['bid_strategy','bid_constraints','pacing_type','start_time','end_time','optimization_sub_event','dsa_beneficiary','dsa_payor']){if(source[k]!==undefined&&source[k]!==null&&source[k]!==''&&(!Array.isArray(source[k])||source[k].length))params[k]=structuredClone(source[k]);}
+ if(source.bid_strategy&&source.bid_strategy!=='LOWEST_COST_WITHOUT_CAP'&&Number(source.bid_amount)>0)params.bid_amount=source.bid_amount;
+ if(!Number(campaign.daily_budget)&&!Number(campaign.lifetime_budget)){if(Number(source.daily_budget)>0)params.daily_budget=source.daily_budget;else if(Number(source.lifetime_budget)>0)params.lifetime_budget=source.lifetime_budget;else throw new Error('No se pudo determinar el presupuesto del conjunto.');}
+ return params;
+}
+export async function fingerprint(value:any){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value))))).map(v=>v.toString(16).padStart(2,'0')).join('');}
+
+export function canAutoRecover(state:any,error:unknown){return Boolean(state.autoAttribution)&&error instanceof MetaError&&!error.ambiguous&&!error.wait&&state.stage==='copy_sets'&&Boolean(state.campaignId)&&/atribuci[oó]n|attribution/i.test(error.message)&&/1\s*d[ií]a|1\s*day/i.test(error.message);}

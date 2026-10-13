@@ -1,0 +1,25 @@
+# Keep the build context bounded and free of local state and secrets.
+# Dependencies are restored from the lockfile inside the image.
+node_modules
+.next
+.git
+.gitignore
+.build-cache
+coverage
+# Never bake environment files or private keys into the context.
+.env
+.env.*
+*.pem
+# Root-only host secret files, including the default ./deploy/secrets layout.
+deploy/secrets
+# Local-only build/test artifacts and tooling state.
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-error.log*
+Dockerfile
+.dockerignore
+# Repository-only surfaces that the production build does not need.
+tests
+docs
+odd

@@ -1,0 +1,31 @@
+name: Propuesta de funcionalidad
+description: Sugerí una mejora o nueva funcionalidad
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema o necesidad
+      description: Qué problema resolvería esta funcionalidad. ¿A qué caso de uso de paid media apunta?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+      description: Cómo imaginás la solución.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+    validations:
+      required: false
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Compatibilidad con el diseño
+      options:
+        - label: Respeta el enfoque conservador con las escrituras en Meta (sin reintentos automáticos de operaciones ambiguas).
+        - label: Es compatible con el despliegue VPN-only / self-hosted.

@@ -1,0 +1,1 @@
+CREATE INDEX `jobs_owner_created` ON `jobs` (`owner`,`created`);

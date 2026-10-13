@@ -1,0 +1,120 @@
+# Production-shaped stack for the private self-hosted deployment.
+#
+# Topology:
+#   VPN client -- internal HTTPS --> Caddy (this host) --> app (this host)
+#   app/migrate --> external PostgreSQL on the separate private VPN/network host
+#
+#   - Caddy terminates internal HTTPS with its own CA and is the ONLY published
+#     service. The app and the one-shot migration never publish a port.
+#   - PostgreSQL is not a service here: it lives on the separate private DB host.
+#   - Secrets are root-only host files under OPENBULKADS_SECRETS_DIR. Compose
+#     mounts them at /run/secrets; the application entrypoint reads them and
+#     permanently drops gid/uid to 1000 before starting any child. Secret values
+#     are never placed in this file, the environment or the image.
+#
+# Required host configuration (the config fails closed when either is unset):
+#   VPN_BIND_ADDRESS   private VPN interface address Caddy binds to (e.g. 10.8.0.5)
+#   MEDIA_HOST_DIR     absolute host directory for private media, owned by uid/gid 1000
+# Optional:
+#   APP_DOMAIN               internal domain (default openbulkads.internal)
+#   OPENBULKADS_SECRETS_DIR  root-only host directory (default ./deploy/secrets)
+#   NEXT_PUBLIC_MEDIA_LIMIT_MB  whole-MB media cap (default 250). Passed as a
+#                            build arg and as runtime env so the inlined browser
+#                            value and the server value stay aligned.
+
+name: openbulkads
+
+services:
+  # One-shot migration gate: `service_completed_successfully` must be reached
+  # before the app starts. It only receives the dedicated migration credentials.
+  migrate:
+    image: openbulkads-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_MEDIA_LIMIT_MB: "${NEXT_PUBLIC_MEDIA_LIMIT_MB:-250}"
+    user: "0:0"
+    command: ["node", "scripts/container-start.mjs", "--migrate-only"]
+    restart: "no"
+    environment:
+      NODE_ENV: production
+    secrets:
+      - MIGRATION_DATABASE_URL
+
+  app:
+    image: openbulkads-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_MEDIA_LIMIT_MB: "${NEXT_PUBLIC_MEDIA_LIMIT_MB:-250}"
+    # The entrypoint needs root only to read the root-only secret files, then it
+    # permanently drops to uid/gid 1000 before spawning the server.
+    user: "0:0"
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      MEDIA_STORAGE: local
+      MEDIA_ROOT: /var/lib/openbulkads/media
+      NEXT_PUBLIC_MEDIA_LIMIT_MB: "${NEXT_PUBLIC_MEDIA_LIMIT_MB:-250}"
+      BETTER_AUTH_URL: "https://${APP_DOMAIN:-openbulkads.internal}"
+    volumes:
+      - type: bind
+        source: ${MEDIA_HOST_DIR:?MEDIA_HOST_DIR must be an absolute host directory owned by uid/gid 1000}
+        target: /var/lib/openbulkads/media
+    secrets:
+      - DATABASE_URL
+      - BETTER_AUTH_SECRET
+      - TOKEN_ENCRYPTION_KEY
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Private reverse proxy. It publishes HTTPS on the VPN address only and waits
+  # for the app to report healthy through /api/ready.
+  caddy:
+    image: caddy:2.11.7
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-openbulkads.internal}
+      CADDY_BIND: 0.0.0.0
+      APP_UPSTREAM: app:3000
+    ports:
+      - "${VPN_BIND_ADDRESS:?VPN_BIND_ADDRESS must be set to the private VPN interface address}:443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  # Persist Caddy's internal CA and configuration across restarts.
+  caddy_data:
+  caddy_config:
+
+secrets:
+  DATABASE_URL:
+    file: ${OPENBULKADS_SECRETS_DIR:-./deploy/secrets}/DATABASE_URL
+  MIGRATION_DATABASE_URL:
+    file: ${OPENBULKADS_SECRETS_DIR:-./deploy/secrets}/MIGRATION_DATABASE_URL
+  BETTER_AUTH_SECRET:
+    file: ${OPENBULKADS_SECRETS_DIR:-./deploy/secrets}/BETTER_AUTH_SECRET
+  TOKEN_ENCRYPTION_KEY:
+    file: ${OPENBULKADS_SECRETS_DIR:-./deploy/secrets}/TOKEN_ENCRYPTION_KEY

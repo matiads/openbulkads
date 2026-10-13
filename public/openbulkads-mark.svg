@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
+  <title id="title">OpenBulkAds</title>
+  <defs>
+    <linearGradient id="bulk" x1="8" y1="5" x2="34" y2="39" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b4befe"/>
+      <stop offset="0.52" stop-color="#cba6f7"/>
+      <stop offset="1" stop-color="#8839ef"/>
+    </linearGradient>
+    <linearGradient id="ad" x1="34" y1="32" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f5c2e7"/>
+      <stop offset="1" stop-color="#ea76cb"/>
+    </linearGradient>
+    <mask id="shape">
+      <rect width="48" height="48" fill="black"/>
+      <path d="M8 5a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v12h5.5C33.5 17 40 23.5 40 31.5V34H29v-2.5a3.5 3.5 0 0 0-7 0V34h-2C13.4 34 8 28.6 8 22V5Z" fill="white"/>
+      <circle cx="25.5" cy="27.5" r="4" fill="black"/>
+    </mask>
+  </defs>
+  <rect width="48" height="48" rx="12" fill="#1e1e2e"/>
+  <rect width="48" height="48" fill="url(#bulk)" mask="url(#shape)"/>
+  <rect x="34" y="34" width="10" height="10" rx="2" fill="url(#ad)"/>
+</svg>

@@ -1,0 +1,55 @@
+# Explicit local validation override. It is NOT auto-loaded (Compose only
+# auto-loads `compose.override.yaml`), so production defaults stay untouched.
+#
+# The reliable invocation is explicit and multi-file: it merges the existing
+# `compose.dev.yaml` PostgreSQL service into the same Compose project and
+# default network as the production-shaped stack. app/migrate then reach
+# PostgreSQL as `postgres:5432`; no Docker host gateway is involved. The
+# inherited dev host port is reset so the smoke database is internal-only and
+# can coexist with an already-running development PostgreSQL.
+#
+# Usage (structural validation, no daemon required):
+#   VPN_BIND_ADDRESS=127.0.0.1 MEDIA_HOST_DIR=/tmp/openbulkads-media \
+#     docker compose -f compose.prod.yaml -f compose.dev.yaml -f compose.local.yaml config
+#
+# Usage (full smoke test):
+#   VPN_BIND_ADDRESS=127.0.0.1 MEDIA_HOST_DIR=/tmp/openbulkads-media \
+#     docker compose -f compose.prod.yaml -f compose.dev.yaml -f compose.local.yaml up
+#
+# What it changes:
+#   - Points app/migrate at the merged development PostgreSQL service by its
+#     internal name (`postgres:5432`); the database is never published on the
+#     host, so the smoke stack coexists with an already-running local dev
+#     PostgreSQL.
+#   - Binds Caddy to 127.0.0.1 only.
+#   - Replaces the root-only host secret files with development-only, non-secret
+#     values. Production secret mounts and production defaults are unchanged.
+
+services:
+  postgres:
+    # compose.dev.yaml publishes 127.0.0.1:5432. The smoke invocation is meant
+    # to run alongside an existing dev database, so the merged service must be
+    # internal-only: reset the inherited host port while keeping app/migrate
+    # pointed at `postgres:5432`.
+    ports: !reset []
+
+  migrate:
+    secrets: !reset []
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MIGRATION_DATABASE_URL: postgresql://openbulkads_dev:local_dev_only@postgres:5432/openbulkads_dev
+
+  app:
+    secrets: !reset []
+    environment:
+      DATABASE_URL: postgresql://openbulkads_dev:local_dev_only@postgres:5432/openbulkads_dev
+      # Development-only, obvious non-secrets.
+      BETTER_AUTH_SECRET: local-dev-only-better-auth-secret-at-least-32-chars
+      TOKEN_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      BETTER_AUTH_URL: https://openbulkads.internal
+
+  caddy:
+    ports: !override
+      - "127.0.0.1:443:443"

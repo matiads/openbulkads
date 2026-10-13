@@ -1,0 +1,53 @@
+name: Reporte de bug
+description: Reportá un error en OpenBulkAds
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportar un bug. **Nunca** incluyas tokens, `App Secret`,
+        cadenas de conexión ni datos de cuentas reales de Meta.
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción
+      description: Qué pasó.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      description: Cómo reproducir el problema, paso a paso.
+      placeholder: |
+        1. Ir a ...
+        2. Hacer ...
+        3. Ver el error ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamiento observado
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Entorno
+      description: Versión de OpenBulkAds, Node, SO, modo de despliegue (dev/prod).
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto adicional
+      description: Logs (sin secretos), capturas, etc.
+    validations:
+      required: false

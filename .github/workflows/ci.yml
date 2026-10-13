@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, types, tests and build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: openbulkads_ci
+          POSTGRES_PASSWORD: ci_only
+          POSTGRES_DB: openbulkads_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openbulkads_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://openbulkads_ci:ci_only@127.0.0.1:5432/openbulkads_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      - name: Database-backed tests
+        run: npm run test:db
+
+      - name: Build
+        run: npm run build

@@ -1,0 +1,15 @@
+{
+	# Private reverse proxy for the self-hosted stack.
+	#
+	# - Serves only the configurable internal domain (default openbulkads.internal).
+	# - Issues certificates from Caddy's internal CA (no public ACME, no port 80).
+	# - Proxies to the app service (or a configurable upstream for local checks).
+	admin off
+}
+
+{$APP_DOMAIN:openbulkads.internal} {
+	bind {$CADDY_BIND:0.0.0.0}
+	tls internal
+	encode zstd gzip
+	reverse_proxy {$APP_UPSTREAM:app:3000}
+}

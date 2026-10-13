@@ -1,0 +1,9 @@
+import {z} from 'zod';
+import {owner,encrypt,connection,json,fail} from '@/lib/server';
+import {repositories} from '@/lib/repositories';
+import {inspectToken} from '@/lib/token-core';
+import {account,allPages} from '@/lib/meta-core';
+import {meta} from '@/lib/server';
+export async function GET(r:Request){try{return json(await (await repositories()).settings.view(await owner(r)));}catch(e){return fail(e);}}
+export async function POST(r:Request){try{const user=await owner(r,true),p:any=await r.json();if(p.action==='credentials'){const v=z.object({appId:z.string().regex(/^\d+$/),secret:z.string().trim().min(16).max(512).regex(/^\S+$/)}).parse(p);const row=await (await repositories()).connections.get(user);let metadata=null;if(row){const c=await connection(user);metadata=await inspectToken(c.token,v.appId,v.secret);}await (await repositories()).settings.upsert(user,{appId:v.appId,appSecret:await encrypt(v.secret),tokenMetadata:metadata?JSON.stringify(metadata):null});return json({saved:true});}if(p.action==='accounts'){const v=z.object({selectedAccounts:z.array(z.string()).max(10000).nullable()}).parse(p);const ids=v.selectedAccounts===null?null:[...new Set(v.selectedAccounts.map(account))];if(ids){const call=await meta(user),available=await allPages(q=>call('me/adaccounts',q),{fields:'id'});const allowed=new Set(available.map(a=>a.id));if(ids.some(a=>!allowed.has(a)))throw new Error('Una cuenta seleccionada ya no está disponible para este token.');}await (await repositories()).settings.upsert(user,{selectedAccounts:ids===null?null:JSON.stringify(ids)});return json({saved:true,selectedAccounts:ids});}throw new Error('Configuración inválida.');}catch(e){return fail(e);}}
+export async function DELETE(r:Request){try{await (await repositories()).settings.clearCredentials(await owner(r,true));return json({saved:true});}catch(e){return fail(e);}}
