@@ -110,12 +110,12 @@ async function api(path: string, options?: RequestInit) {
   if (!r.ok) throw new Error(data.error || "No se pudo completar la solicitud.");
   return data;
 }
-function Picker({ label, value, onChange, items, placeholder, disabled, icon }: { label: string; value: string; onChange: (v: string) => void; items: Item[]; placeholder?: string; disabled?: boolean; icon?: LucideIcon }) {
+function Picker({ label, value, onChange, items, placeholder, disabled = false, icon }: { label: string; value: string; onChange: (v: string) => void; items: Item[]; placeholder?: string; disabled?: boolean; icon?: LucideIcon }) {
   return (
     <label className="field">
       <span>{icon && <AppIcon icon={icon} size="secondary" />}{label}</span>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger className="picker">
+        <SelectTrigger className="picker" disabled={disabled}>
           <SelectValue placeholder={placeholder || "Seleccionar"} />
         </SelectTrigger>
         <SelectContent>
@@ -139,7 +139,7 @@ function AccountPicker({ value, onChange, items, disabled, connected }: { value:
     <label className="field account-picker">
       <span>Cuenta publicitaria <AppIcon icon={Info} size="secondary" /></span>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger className="account-trigger">
+        <SelectTrigger className="account-trigger" disabled={disabled}>
           <SelectValue placeholder={connected ? "Elegí una cuenta" : "Conectá Meta para ver tus cuentas"}>
             {selected && <span className="account-value"><span className="meta-mark"><MetaMark /></span><span><strong>{selected.name}</strong><small>ID: {selected.id.replace("act_", "")}</small></span></span>}
           </SelectValue>
