@@ -1,5 +1,6 @@
 // Safe relative redirect handling for the self-hosted Better Auth sign-in flow.
 export const SIGN_IN_PATH = "/sign-in";
+export const SETUP_PATH = "/setup";
 
 // Only allow same-app relative paths as post-login redirects; anything absolute,
 // protocol-relative, or pointing back at the sign-in page falls back to "/".
@@ -20,4 +21,8 @@ export function safeRelativeReturnPath(value: string): string {
 
 export function signInPath(returnTo: string): string {
   return `${SIGN_IN_PATH}?return_to=${encodeURIComponent(safeRelativeReturnPath(returnTo))}`;
+}
+
+export function setupPath(): string {
+  return SETUP_PATH;
 }
