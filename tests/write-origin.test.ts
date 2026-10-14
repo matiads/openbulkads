@@ -7,17 +7,17 @@ function request(url: string, headers: Record<string, string>) {
 }
 
 test('a browser host that differs from the bind address stays same-origin', () => {
-  const same = request('http://100.71.183.82:3000/api/settings', {
-    origin: 'http://dev.tail4861b.ts.net:3000',
-    host: 'dev.tail4861b.ts.net:3000',
+  const same = request('http://192.0.2.10:3000/api/settings', {
+    origin: 'http://dev.example.internal:3000',
+    host: 'dev.example.internal:3000',
   });
   assert.equal(isSameOriginWrite(same), true);
 });
 
 test('foreign origins stay blocked when the public host differs from the bind address', () => {
-  const foreign = request('http://100.71.183.82:3000/api/settings', {
+  const foreign = request('http://192.0.2.10:3000/api/settings', {
     origin: 'http://evil.example',
-    host: 'dev.tail4861b.ts.net:3000',
+    host: 'dev.example.internal:3000',
   });
   assert.equal(isSameOriginWrite(foreign), false);
 });
