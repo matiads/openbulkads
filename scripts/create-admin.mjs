@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './load-env.mjs';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';

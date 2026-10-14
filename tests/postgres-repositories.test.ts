@@ -1,3 +1,4 @@
+import '../scripts/load-env.mjs';
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';

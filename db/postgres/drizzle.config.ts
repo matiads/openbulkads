@@ -1,3 +1,4 @@
+import '../../scripts/load-env.mjs';
 import { defineConfig } from 'drizzle-kit';
 import { getDatabaseUrl } from './config';
 

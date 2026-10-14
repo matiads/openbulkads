@@ -60,7 +60,11 @@ Creativos nuevos soportados hoy: **sitio web, WhatsApp e Instagram Direct**. Car
 
 ## Instalación y despliegue (parte técnica)
 
-> Esta sección es para quien monta la herramienta (vos con algo de conocimiento técnico, o tu equipo de IT). OpenBulkAds está pensado para correr **dentro de tu red privada / VPN** (por ejemplo con [Tailscale](https://tailscale.com/)), **nunca expuesto a internet**.
+OpenBulkAds ofrece dos modalidades de acceso según tu infraestructura:
+1. **Red privada / VPN (Recomendado):** pensado para correr dentro de tu red privada (por ejemplo con [Tailscale](https://tailscale.com/)), manteniendo la app y tus datos completamente aislados de internet.
+2. **Dominio con Reverse Proxy:** para desplegar en tu propio servidor o VPS detrás de Caddy, Nginx, Traefik o Cloudflare Tunnel.
+
+---
 
 ### Requisitos
 
@@ -69,27 +73,78 @@ Creativos nuevos soportados hoy: **sitio web, WhatsApp e Instagram Direct**. Car
 - Docker + Docker Compose (para el despliegue de referencia)
 - Un token de usuario de Meta con permisos `ads_management` y `ads_read`
 
-### Probarlo en tu compu (desarrollo)
+---
+
+### Generación de claves de seguridad
+
+Antes de arrancar, generá las dos claves necesarias para tu `.env`:
 
 ```bash
-npm install
-cp .env.example .env            # completar valores
-sudo -n docker compose -f compose.dev.yaml up -d postgres
-npm run db:migrate              # crea las tablas
-npm run dev                     # abre http://localhost:3000
-npm run admin:create            # crea tu primer usuario (registro cerrado)
+# Para TOKEN_ENCRYPTION_KEY (32 bytes en base64 para cifrar los tokens de Meta):
+openssl rand -base64 32
+# (o con Node: node -e "console.log(crypto.randomBytes(32).toString('base64'))")
+
+# Para BETTER_AUTH_SECRET (secreto para sesiones de usuario):
+openssl rand -hex 32
 ```
 
-### Ponerlo en producción (detrás de la VPN)
+---
 
-Un solo `docker compose` levanta la app + un proxy interno (Caddy) y se conecta a tu PostgreSQL privado. La guía completa —secretos, certificados, **backups**, actualizaciones y rollback— está en **[deploy/README.md](deploy/README.md)**.
+### Probarlo en tu compu (desarrollo)
+
+1. **Instalar dependencias y configurar variables:**
+   ```bash
+   npm install
+   cp .env.example .env
+   ```
+   Completá las variables generadas (`TOKEN_ENCRYPTION_KEY`, etc.) en tu `.env`.
+
+2. **Iniciar la base de datos:**
+   ```bash
+   docker compose -f compose.dev.yaml up -d postgres
+   ```
+   > *Nota:* Si en Linux tu usuario no pertenece al grupo `docker`, anteponé `sudo`. Si ya tenés un PostgreSQL local corriendo en el puerto 5432, podés apuntar `DATABASE_URL` a tu base o cambiar el mapeo de puerto en `compose.dev.yaml`.
+
+3. **Migrar las tablas y crear tu usuario administrador:**
+   ```bash
+   npm run db:migrate              # crea las tablas (carga .env automáticamente)
+   npm run admin:create            # crea interactivamente tu usuario admin
+   ```
+
+4. **Iniciar el servidor de desarrollo:**
+   - **Acceso local (misma máquina):**
+     ```bash
+     npm run dev                   # abre http://localhost:3000
+     ```
+   - **Acceso por red privada / Tailscale / LAN:**
+     Si estás corriendo el devserver en un servidor, VM o homelab y entrás desde tu notebook por Tailscale o IP de red:
+     ```bash
+     npm run dev:network           # escucha en 0.0.0.0:3000
+     ```
+     En tu `.env`, asegurate de configurar `BETTER_AUTH_URL` con tu hostname (por ej. `http://mi-servidor.ts.net:3000`). OpenBulkAds deriva automáticamente los orígenes permitidos (`allowedDevOrigins`) desde allí para que Turbopack y las sesiones funcionen sin bloqueos.
+
+---
+
+### Ponerlo en producción
+
+La guía completa —secretos, certificados, proxies externos, **backups**, actualizaciones y rollback— está en **[deploy/README.md](deploy/README.md)**.
+
+#### Opción A: Red privada / VPN (Recomendado)
+Un solo `docker compose` levanta la app + un proxy interno (Caddy con HTTPS automático y certificados privados) en la IP de tu VPN o Tailscale:
 
 ```bash
-export VPN_BIND_ADDRESS=10.8.0.5                 # la IP de tu VPN
+export VPN_BIND_ADDRESS=10.8.0.5                 # la IP de tu VPN o Tailscale
 export MEDIA_HOST_DIR=/var/lib/openbulkads/media # carpeta para los archivos
 docker compose -f compose.prod.yaml build
 docker compose -f compose.prod.yaml up -d
 ```
+
+#### Opción B: Dominio público con Reverse Proxy
+Si publicás OpenBulkAds bajo un dominio (ej. `https://ads.mi-dominio.com`):
+- Configurá `APP_DOMAIN=ads.mi-dominio.com` y `BETTER_AUTH_URL=https://ads.mi-dominio.com`.
+- Si ubicás otro reverse proxy por delante (Nginx, Traefik, Caddy), asegurate de subir el límite de carga de archivos (ej. `client_max_body_size 260m;` en Nginx) para permitir la subida de videos pesados según `NEXT_PUBLIC_MEDIA_LIMIT_MB`.
+
+---
 
 ### Configuración
 
@@ -97,11 +152,12 @@ Las variables están documentadas en [`.env.example`](.env.example). Las princip
 
 | Variable | Requerida | Para qué sirve |
 | --- | --- | --- |
-| `TOKEN_ENCRYPTION_KEY` | sí | Clave AES (32 bytes en base64) para cifrar los tokens. Generala vos; no la compartas. |
+| `TOKEN_ENCRYPTION_KEY` | sí | Clave AES (exactamente 32 bytes en base64) para cifrar los tokens. Generar con `openssl rand -base64 32`. |
 | `DATABASE_URL` | sí | Conexión a PostgreSQL de la app. |
 | `MIGRATION_DATABASE_URL` | sí (prod) | Credenciales solo para migraciones; la app en marcha nunca migra. |
-| `BETTER_AUTH_SECRET` | sí (prod) | Secreto aleatorio de 32+ caracteres para las sesiones. |
-| `BETTER_AUTH_URL` | sí (prod) | URL interna de la app (p. ej. `https://ads.example.internal`). |
+| `BETTER_AUTH_SECRET` | sí (prod) | Secreto aleatorio de 32+ caracteres para las sesiones. Generar con `openssl rand -hex 32`. |
+| `BETTER_AUTH_URL` | sí (prod) | URL pública/interna de la app (p. ej. `http://servidor.ts.net:3000` o `https://ads.midominio.com`). |
+| `ALLOWED_DEV_ORIGINS` | no | Hostnames adicionales permitidos en `next dev` (opcional; el host de `BETTER_AUTH_URL` se incluye automáticamente). |
 | `MEDIA_ROOT` | sí | Carpeta privada donde se guardan los archivos, fuera del web root. |
 | `NEXT_PUBLIC_MEDIA_LIMIT_MB` | no | Límite de tamaño por archivo en MB (default 250). Cambiarlo requiere reconstruir. |
 

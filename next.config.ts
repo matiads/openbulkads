@@ -1,14 +1,12 @@
 import type { NextConfig } from "next";
+import { resolveAllowedDevOrigins } from "./lib/dev-origins";
 
 // Standalone output is opt-in: the container build sets NEXT_OUTPUT=standalone,
 // while the default `next build` stays unchanged.
-// Comma-separated hostnames for `next dev` when the browser origin differs
-// from the bind address (for example a Tailscale MagicDNS name). Unset in
-// production and in the default build.
-const allowedDevOrigins = (process.env.ALLOWED_DEV_ORIGINS ?? "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+// Hostnames for `next dev` when the browser origin differs from the bind address
+// (for example a Tailscale MagicDNS name or LAN IP). Derived automatically from
+// BETTER_AUTH_URL, with optional extras in ALLOWED_DEV_ORIGINS.
+const allowedDevOrigins = resolveAllowedDevOrigins();
 
 const nextConfig: NextConfig = {
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
