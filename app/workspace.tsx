@@ -5,8 +5,9 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import NextImage from "next/image";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, ChevronRight, CircleCheck, Copy, ExternalLink, Folder, History, Image as ImageIcon, Info, Layers, Layers3, Link as LinkIcon, Loader2, PauseCircle, PlusCircle, RefreshCw, Search, Settings2, Trash2, UploadCloud, Video, ChevronsUpDown, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowRight, ChevronRight, CircleAlert, CircleCheck, Copy, ExternalLink, Eye, Folder, History, Image as ImageIcon, Info, Layers, Layers3, Link as LinkIcon, Loader2, Megaphone, PauseCircle, PlusCircle, RefreshCw, RotateCcw, Search, Settings2, Target, Trash2, UploadCloud, Video, ChevronsUpDown, type LucideIcon } from "lucide-react";
 import { AppIcon } from "@/components/app-icon";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
@@ -97,6 +98,33 @@ function groupJobRuns(jobs: any[]): JobRun[] {
     if (group.plan && group.jobs.length < Number(group.plan.payload.runTotal) && group.status === "done") group.status = "ready";
   }
   return [...groups.values()].sort((a, b) => b.created - a.created);
+}
+type RunSummary = { completed: number; expected: number; current: any; badgeKey: string; badgeText: string; bucket: "done" | "failed" | "review" | "progress"; canResume: boolean };
+function runSummary(run: JobRun): RunSummary {
+  const completed = run.jobs.filter((job) => job.status === "done").length;
+  const current = run.jobs.find((job) => job.status !== "done") || run.jobs[run.jobs.length - 1];
+  const expected = Number(run.plan?.payload.runTotal) || run.jobs.length;
+  const isPartial = run.status === "failed" && completed > 0;
+  const badgeKey =
+    run.status === "done" ? "done"
+    : run.status === "failed" ? (isPartial ? "partial" : "failed")
+    : run.status === "uncertain" ? "review"
+    : run.status === "working" ? "working"
+    : "pending";
+  const badgeText =
+    badgeKey === "done" ? "Completada"
+    : badgeKey === "partial" ? "Parcial"
+    : badgeKey === "failed" ? "Con errores"
+    : badgeKey === "review" ? "Revisar en Meta"
+    : badgeKey === "working" ? "En ejecución"
+    : stageLabel[current?.state?.stage] || "Pendiente";
+  const bucket: RunSummary["bucket"] =
+    badgeKey === "done" ? "done"
+    : badgeKey === "review" ? "review"
+    : badgeKey === "failed" || badgeKey === "partial" ? "failed"
+    : "progress";
+  const canResume = Boolean(run.plan && (completed < expected || run.jobs.some((job) => job.status !== "done")));
+  return { completed, expected, current, badgeKey, badgeText, bucket, canResume };
 }
 async function api(path: string, options?: RequestInit) {
   const r = await fetch("/api/" + path, {
@@ -239,6 +267,8 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
     [campaigns, setCampaigns] = useState<Item[]>([]),
     [sets, setSets] = useState<Item[]>([]),
     [ads, setAds] = useState<Item[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null),
+    [historyFilter, setHistoryFilter] = useState<"all" | "done" | "failed" | "review">("all");
   const [account, setAccount] = useState(""),
     [campaign, setCampaign] = useState(""),
     [adset, setAdset] = useState(""),
@@ -336,6 +366,43 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
   const visibleSets = sets.filter((item) => matches(item, adsetQuery));
   const visibleAds = ads.filter((item) => matches(item, adQuery));
   const jobRuns = groupJobRuns(jobs);
+  const runStats = jobRuns.reduce(
+    (acc, run) => {
+      const bucket = runSummary(run).bucket;
+      if (bucket === "done") acc.done++;
+      else if (bucket === "failed") acc.failed++;
+      else if (bucket === "review") acc.review++;
+      return acc;
+    },
+    { done: 0, failed: 0, review: 0 },
+  );
+  const filteredRuns = historyFilter === "all" ? jobRuns : jobRuns.filter((run) => runSummary(run).bucket === historyFilter);
+  const selectedRun = jobRuns.find((run) => run.id === selectedRunId) || null;
+  const inspector = selectedRun
+    ? (() => {
+        const s = runSummary(selectedRun);
+        const plan = selectedRun.plan?.payload;
+        const accountName = accounts.find((a) => a.id === plan?.account)?.name;
+        const metaAct = String(plan?.account || selectedRun.jobs[0]?.payload?.account || "").replace("act_", "");
+        const campaignJob = selectedRun.jobs.find((j) => j.state?.campaignId);
+        const campaignId = plan?.campaign || campaignJob?.state?.campaignId;
+        const campaignName = plan?.campaignName || campaigns.find((c) => c.id === campaignId)?.name;
+        const adsetJob = selectedRun.jobs.find((j) => j.state?.adsetId);
+        const adsetId = plan?.adset || adsetJob?.state?.adsetId;
+        const adsetName = plan?.adsetName || sets.find((set) => set.id === adsetId)?.name;
+        const adJobs = selectedRun.jobs
+          .filter((j) => j.kind !== "template" && j.kind !== "adset-copy")
+          .sort((a, b) => (a.payload.runIndex || 0) - (b.payload.runIndex || 0));
+        const topAd = adJobs.find((j) => j.state?.adId);
+        const metaUrl = metaAct && topAd?.state?.adId
+          ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${metaAct}&selected_ad_ids=${topAd.state.adId}`
+          : metaAct && campaignId
+            ? `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${metaAct}&selected_campaign_ids=${campaignId}`
+            : "";
+        const metaLink = (kind: "ad" | "campaign", id: string) => `https://adsmanager.facebook.com/adsmanager/manage/${kind === "ad" ? "ads" : "campaigns"}?act=${metaAct}&selected_${kind}_ids=${id}`;
+        return { s, plan, accountName, metaAct, campaignId, campaignName, adsetId, adsetName, adJobs, metaUrl, metaLink };
+      })()
+    : null;
   const targetSet = mode === "campaign" ? modelAdset : adset;
   const buildSource = mode === "campaign" ? modelSets.find((s) => s.id === modelAdset) : null;
   const modelObjective = modelCampaign ? campaigns.find((c) => c.id === modelCampaign)?.objective || "" : "";
@@ -2225,7 +2292,7 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
         </div>
         <section className="history" id="history">
           <div className="section-title">
-            <h2>Últimas cargas</h2>
+            <h2>Historial de cargas</h2>
             <button className="text-button" onClick={refreshJobs}>
               <AppIcon icon={RefreshCw} size="secondary" />
               Actualizar
@@ -2240,68 +2307,180 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
               </div>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Resultado</TableHead>
-                  <TableHead>Acción</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {jobRuns.map((run) => {
-                  const completed = run.jobs.filter((job) => job.status === "done").length;
-                  const current = run.jobs.find((job) => job.status !== "done") || run.jobs[run.jobs.length - 1];
-                  const expected = Number(run.plan?.payload.runTotal) || run.jobs.length;
-                  const statusText = run.status === "done" ? "Carga completada" : run.status === "failed" ? "Carga con errores" : run.status === "uncertain" ? "Revisar en Meta" : run.status === "working" ? "En ejecución / verificar" : stageLabel[current?.state.stage] || "Pendiente";
-                  return (
-                  <TableRow key={run.id}>
-                    <TableCell>
-                      <strong>{run.name}</strong>
-                      <small className="block">{new Date(run.created).toLocaleString("es-AR")}</small>
-                    </TableCell>
-                    <TableCell>
-                      <span className={"status " + run.status}>{statusText}</span>
-                      {current?.state.error && <p className="error-detail">{current.state.error}</p>}
-                    </TableCell>
-                    <TableCell>
-                      <strong>{completed}/{expected}</strong>
-                      <small className="block">operaciones completadas</small>
-                    </TableCell>
-                    <TableCell>
-                      <details className="run-detail">
-                        <summary>Ver detalle ({run.jobs.length})</summary>
-                        <div className="run-jobs">
-                          {run.jobs.sort((a, b) => (a.payload.runIndex || 0) - (b.payload.runIndex || 0)).map((j) => (
-                            <div className="run-job" key={j.id}>
-                              <strong>{j.payload.name}</strong>
-                              <span className={"status " + j.status}>{j.status === "done" ? "Creado en pausa" : j.status === "failed" ? "Error" : j.status === "uncertain" ? "Revisar" : stageLabel[j.state.stage] || "Pendiente"}</span>
-                              {(j.state.adId || j.state.adsetId || j.state.campaignId) && <small>ID: {j.state.adId || j.state.adsetId || j.state.campaignId}</small>}
-                              {j.state.error && <p className="error-detail">{j.state.error}</p>}
-                              {j.state.errorAction && <p className="error-action">{j.state.errorAction}</p>}
-                              {j.state.trace && <small>Referencia Meta: {j.state.trace}</small>}
-                              <div className="run-actions">
-                                {isAttributionFailure(j) && <button className="text-button" disabled={busy || recoveryLoading} onClick={() => prepareRecovery(j)}>Recuperar con 1 día de clic</button>}
-                                {(["ready", "waiting"].includes(j.status) || canResumeRejectedJob(j)) && <button className="text-button" disabled={busy} onClick={() => resume(j)}>Retomar</button>}
-                                {j.kind === "campaign" && j.status === "done" && <button className="text-button" disabled={busy} onClick={() => resume(j)}>Cargar anuncios</button>}
-                                {(j.state.adId || j.state.campaignId) && <a className="text-button" href={`https://adsmanager.facebook.com/adsmanager/manage/${j.state.adId ? "ads" : "campaigns"}?act=${j.payload.account.replace("act_", "")}&selected_${j.state.adId ? "ad" : "campaign"}_ids=${j.state.adId || j.state.campaignId}`} target="_blank" rel="noreferrer">Ver en Meta <AppIcon icon={ExternalLink} size="secondary" /></a>}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                      {run.plan && (completed < expected || run.jobs.some((job) => job.status !== "done")) && (
-                        <button className="text-button" disabled={busy} onClick={() => resumeRun(run)}>Retomar carga</button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <>
+              <div className="history-summary">
+                <button type="button" className={"history-card total" + (historyFilter === "all" ? " is-active" : "")} onClick={() => setHistoryFilter("all")}>
+                  <AppIcon icon={Layers3} />
+                  <div><strong>{jobRuns.length}</strong><span>Cargas totales</span></div>
+                </button>
+                <button type="button" className={"history-card done" + (historyFilter === "done" ? " is-active" : "")} onClick={() => setHistoryFilter((f) => (f === "done" ? "all" : "done"))}>
+                  <AppIcon icon={CircleCheck} />
+                  <div><strong>{runStats.done}</strong><span>Completadas</span></div>
+                </button>
+                <button type="button" className={"history-card failed" + (historyFilter === "failed" ? " is-active" : "")} onClick={() => setHistoryFilter((f) => (f === "failed" ? "all" : "failed"))}>
+                  <AppIcon icon={CircleAlert} />
+                  <div><strong>{runStats.failed}</strong><span>Con errores</span></div>
+                </button>
+                <button type="button" className={"history-card review" + (historyFilter === "review" ? " is-active" : "")} onClick={() => setHistoryFilter((f) => (f === "review" ? "all" : "review"))}>
+                  <AppIcon icon={Eye} />
+                  <div><strong>{runStats.review}</strong><span>En revisión</span></div>
+                </button>
+              </div>
+              {filteredRuns.length === 0 ? (
+                <div className="empty">
+                  <AppIcon icon={Search} size="large" />
+                  <div>
+                    <strong>No hay cargas con este estado.</strong>
+                    <p>Probá con otro filtro o mostrá todas las cargas.</p>
+                  </div>
+                </div>
+              ) : (
+                <Table className="history-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Carga</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Resultado</TableHead>
+                      <TableHead>Acción</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRuns.map((run) => {
+                      const s = runSummary(run);
+                      return (
+                        <TableRow key={run.id} className={"history-row" + (selectedRunId === run.id ? " is-active" : "")} onClick={() => setSelectedRunId(run.id)}>
+                          <TableCell>
+                            <strong>{run.name}</strong>
+                            <small className="block">{new Date(run.created).toLocaleString("es-AR")}</small>
+                          </TableCell>
+                          <TableCell>
+                            <span className={"status " + s.badgeKey}>{s.badgeText}</span>
+                          </TableCell>
+                          <TableCell>
+                            <strong className="result">{s.completed}/{s.expected}</strong>
+                            <small className="block">operaciones</small>
+                          </TableCell>
+                          <TableCell className="history-action" onClick={(e) => e.stopPropagation()}>
+                            {s.canResume ? (
+                              <button className="text-button" disabled={busy} onClick={() => resumeRun(run)}><AppIcon icon={RotateCcw} size="secondary" />Reintentar</button>
+                            ) : (
+                              <button className="text-button" onClick={() => setSelectedRunId(run.id)}><AppIcon icon={Eye} size="secondary" />Ver detalle</button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </>
           )}
         </section>
+        <Sheet open={!!selectedRun} onOpenChange={(v) => { if (!v) setSelectedRunId(null); }}>
+          <SheetContent side="right" className="run-inspector" aria-describedby={undefined}>
+            {selectedRun && inspector && (
+              <>
+                <div className="inspector-head">
+                  <span className={"status " + inspector.s.badgeKey}>{inspector.s.badgeText}</span>
+                  <small>{new Date(selectedRun.created).toLocaleString("es-AR")}</small>
+                </div>
+                <SheetTitle className="inspector-title">{selectedRun.name}</SheetTitle>
+                {inspector.metaUrl && (
+                  <a className="secondary-button inspector-cta" href={inspector.metaUrl} target="_blank" rel="noreferrer">
+                    Ver en Meta Ads Manager
+                    <AppIcon icon={ExternalLink} size="secondary" />
+                  </a>
+                )}
+                <div className="inspector-scroll">
+                  <section className="inspector-block">
+                    <h3>Resumen</h3>
+                    <dl className="inspector-grid">
+                      <div>
+                        <dt>Cuenta publicitaria</dt>
+                        <dd>{inspector.accountName || "Cuenta"}{inspector.plan?.account && <small>ID: {inspector.plan.account.replace("act_", "")}</small>}</dd>
+                      </div>
+                      <div>
+                        <dt>Resultado</dt>
+                        <dd>{inspector.s.completed}/{inspector.s.expected} operaciones completadas</dd>
+                      </div>
+                    </dl>
+                  </section>
+                  {(inspector.campaignId || inspector.adsetId) && (
+                    <section className="inspector-block">
+                      {inspector.campaignId && (
+                        <div className="inspector-entity">
+                          <AppIcon icon={Megaphone} />
+                          <div>
+                            <span>Campaña</span>
+                            <strong>{inspector.campaignName || "Campaña"}</strong>
+                            <small>ID: {inspector.campaignId}</small>
+                          </div>
+                          {inspector.metaAct && <a className="icon-link" href={inspector.metaLink("campaign", inspector.campaignId)} target="_blank" rel="noreferrer" aria-label="Ver campaña en Meta"><AppIcon icon={ExternalLink} size="secondary" /></a>}
+                        </div>
+                      )}
+                      {inspector.adsetId && (
+                        <div className="inspector-entity">
+                          <AppIcon icon={Target} />
+                          <div>
+                            <span>Conjunto de anuncios</span>
+                            <strong>{inspector.adsetName || "Conjunto"}</strong>
+                            <small>ID: {inspector.adsetId}</small>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+                  )}
+                  <section className="inspector-block">
+                    <h3>Anuncios procesados ({inspector.adJobs.length})</h3>
+                    <div className="inspector-ads">
+                      {inspector.adJobs.map((j) => {
+                        const jobKey = j.status === "done" ? "done" : j.status === "failed" ? "failed" : j.status === "uncertain" ? "review" : "pending";
+                        const jobText = j.status === "done" ? "Creado en pausa" : j.status === "failed" ? "Con error" : j.status === "uncertain" ? "Revisar" : stageLabel[j.state?.stage] || "Pendiente";
+                        const refId = j.state?.adId || j.state?.adsetId || j.state?.campaignId;
+                        return (
+                          <div className="inspector-ad" key={j.id}>
+                            <div className="inspector-ad-thumb" aria-hidden>
+                              <AppIcon icon={j.payload?.mediaType === "video" ? Video : ImageIcon} size="secondary" />
+                            </div>
+                            <div className="inspector-ad-body">
+                              <div className="inspector-ad-top">
+                                <strong>{j.payload?.name}</strong>
+                                <span className={"status " + jobKey}>{jobText}</span>
+                              </div>
+                              {refId && <small className="inspector-id">ID: {refId}</small>}
+                              {j.state?.error && (
+                                <div className="inspector-error">
+                                  <p className="error-detail"><AppIcon icon={AlertTriangle} size="secondary" />{j.state.error}</p>
+                                  {j.state.errorAction && <p className="error-action">{j.state.errorAction}</p>}
+                                  {j.state.trace && <small>Referencia Meta: {j.state.trace}</small>}
+                                </div>
+                              )}
+                              <div className="run-actions">
+                                {isAttributionFailure(j) && <button className="text-button" disabled={busy || recoveryLoading} onClick={() => prepareRecovery(j)}><AppIcon icon={RotateCcw} size="secondary" />Recuperar con 1 día de clic</button>}
+                                {(["ready", "waiting"].includes(j.status) || canResumeRejectedJob(j)) && <button className="text-button" disabled={busy} onClick={() => resume(j)}><AppIcon icon={RotateCcw} size="secondary" />Retomar</button>}
+                                {j.kind === "campaign" && j.status === "done" && <button className="text-button" disabled={busy} onClick={() => resume(j)}>Cargar anuncios</button>}
+                                {(j.state?.adId || j.state?.campaignId) && inspector.metaAct && <a className="text-button" href={inspector.metaLink(j.state.adId ? "ad" : "campaign", j.state.adId || j.state.campaignId)} target="_blank" rel="noreferrer">Ver en Meta <AppIcon icon={ExternalLink} size="secondary" /></a>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </div>
+                {inspector.s.canResume && (
+                  <div className="inspector-foot">
+                    <button className="primary" disabled={busy} onClick={() => resumeRun(selectedRun)}>
+                      <AppIcon icon={RotateCcw} size="secondary" />
+                      Reintentar operaciones pendientes
+                    </button>
+                    <p className="summary-foot">Solo se reintentan las operaciones pendientes o con error. Los anuncios ya creados no se duplican.</p>
+                  </div>
+                )}
+              </>
+            )}
+          </SheetContent>
+        </Sheet>
         <footer>
           OpenBulkAds <span>Open source · Marketing API v26.0</span>
         </footer>
