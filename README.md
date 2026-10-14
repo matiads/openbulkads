@@ -80,6 +80,20 @@ npm run dev                     # abre http://localhost:3000
 npm run admin:create            # crea tu primer usuario (registro cerrado)
 ```
 
+Configurá `BETTER_AUTH_URL` con la misma URL que usarás en el navegador. En desarrollo, Next permite automáticamente ese hostname. Esto funciona con localhost, una IP de LAN, Tailscale u otro dominio interno:
+
+```dotenv
+BETTER_AUTH_URL=http://localhost:3000
+# BETTER_AUTH_URL=http://ads.lan:3000
+# BETTER_AUTH_URL=https://ads.example.internal
+```
+
+Si necesitás acceder al mismo servidor con hostnames adicionales, agregalos sin protocolo ni puerto y reiniciá Next:
+
+```dotenv
+ALLOWED_DEV_ORIGINS=ads.lan,dev.example.internal
+```
+
 ### Ponerlo en producción (detrás de la VPN)
 
 Un solo `docker compose` levanta la app + un proxy interno (Caddy) y se conecta a tu PostgreSQL privado. La guía completa —secretos, certificados, **backups**, actualizaciones y rollback— está en **[deploy/README.md](deploy/README.md)**.
@@ -101,7 +115,8 @@ Las variables están documentadas en [`.env.example`](.env.example). Las princip
 | `DATABASE_URL` | sí | Conexión a PostgreSQL de la app. |
 | `MIGRATION_DATABASE_URL` | sí (prod) | Credenciales solo para migraciones; la app en marcha nunca migra. |
 | `BETTER_AUTH_SECRET` | sí (prod) | Secreto aleatorio de 32+ caracteres para las sesiones. |
-| `BETTER_AUTH_URL` | sí (prod) | URL interna de la app (p. ej. `https://ads.example.internal`). |
+| `BETTER_AUTH_URL` | sí (prod) | URL pública usada en el navegador (p. ej. `https://ads.example.internal`); en desarrollo su hostname se permite automáticamente. |
+| `ALLOWED_DEV_ORIGINS` | no | Hostnames adicionales, separados por comas y sin protocolo ni puerto, aceptados únicamente por `next dev`. |
 | `MEDIA_ROOT` | sí | Carpeta privada donde se guardan los archivos, fuera del web root. |
 | `NEXT_PUBLIC_MEDIA_LIMIT_MB` | no | Límite de tamaño por archivo en MB (default 250). Cambiarlo requiere reconstruir. |
 
