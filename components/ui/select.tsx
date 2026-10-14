@@ -6,10 +6,27 @@ import { Select as SelectPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+const SelectHydrationContext = React.createContext(false)
+const subscribeToHydration = () => () => {}
+const clientSnapshot = () => true
+const serverSnapshot = () => false
+
 function Select({
+  disabled,
+  children,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
+  // Keep the server and hydration pass identical; mount Radix only afterwards.
+  const hydrated = React.useSyncExternalStore(subscribeToHydration, clientSnapshot, serverSnapshot)
+  return (
+    <SelectHydrationContext.Provider value={hydrated}>
+      {hydrated ? (
+        <SelectPrimitive.Root data-slot="select" {...props} disabled={Boolean(disabled)}>
+          {children}
+        </SelectPrimitive.Root>
+      ) : children}
+    </SelectHydrationContext.Provider>
+  )
 }
 
 function SelectGroup({
@@ -19,21 +36,28 @@ function SelectGroup({
 }
 
 function SelectValue({
+  children,
+  placeholder,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Value>) {
-  return <SelectPrimitive.Value data-slot="select-value" {...props} />
+  const hydrated = React.useContext(SelectHydrationContext)
+  if (!hydrated) return <span data-slot="select-value">{children ?? placeholder}</span>
+  return <SelectPrimitive.Value data-slot="select-value" {...props} placeholder={placeholder}>{children}</SelectPrimitive.Value>
 }
 
 function SelectTrigger({
   className,
   size = "default",
   children,
+  disabled,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: "sm" | "default"
 }) {
+  const hydrated = React.useContext(SelectHydrationContext)
+  const Trigger = hydrated ? SelectPrimitive.Trigger : "button"
   return (
-    <SelectPrimitive.Trigger
+    <Trigger
       data-slot="select-trigger"
       data-size={size}
       className={cn(
@@ -41,12 +65,16 @@ function SelectTrigger({
         className
       )}
       {...props}
+      type="button"
+      disabled={!hydrated || Boolean(disabled)}
     >
       {children}
-      <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50" />
-      </SelectPrimitive.Icon>
-    </SelectPrimitive.Trigger>
+      {hydrated ? (
+        <SelectPrimitive.Icon asChild>
+          <ChevronDownIcon className="size-4 opacity-50" />
+        </SelectPrimitive.Icon>
+      ) : <ChevronDownIcon className="size-4 opacity-50" />}
+    </Trigger>
   )
 }
 
@@ -57,6 +85,8 @@ function SelectContent({
   align = "center",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const hydrated = React.useContext(SelectHydrationContext)
+  if (!hydrated) return null
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
