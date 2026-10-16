@@ -6,7 +6,12 @@ import Link from "next/link";
 import NextImage from "next/image";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowRight, ChevronRight, CircleAlert, CircleCheck, Copy, ExternalLink, Eye, Folder, History, Image as ImageIcon, Info, Layers, Layers3, Link as LinkIcon, Loader2, Megaphone, PauseCircle, PlusCircle, RefreshCw, RotateCcw, Search, Settings2, Target, Trash2, UploadCloud, Video, ChevronsUpDown, type LucideIcon } from "lucide-react";
+import { toast } from "sonner";
 import { AppIcon } from "@/components/app-icon";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -125,6 +130,32 @@ function runSummary(run: JobRun): RunSummary {
     : "progress";
   const canResume = Boolean(run.plan && (completed < expected || run.jobs.some((job) => job.status !== "done")));
   return { completed, expected, current, badgeKey, badgeText, bucket, canResume };
+}
+const statusBadgeClass: Record<string, string> = {
+  done: "bg-[#dcefd9] text-[#3c6540] border-[#c5e0bf]",
+  failed: "bg-[#f8dce4] text-[#8b2d4b] border-[#f0c4d0]",
+  partial: "bg-[#fdecc8] text-[#8a5a0b] border-[#f5dea8]",
+  review: "bg-[#e3edfb] text-[#2f5fa8] border-[#c9daf5]",
+  working: "bg-[#ede4ff] text-[#6d28d9] border-[#d9ccf5]",
+  pending: "bg-[#edeef3] text-[#5c5f77] border-[#dcdee8]",
+};
+function StatusBadge({ badgeKey, children }: { badgeKey: string; children: React.ReactNode }) {
+  return <Badge variant="outline" className={statusBadgeClass[badgeKey] || statusBadgeClass.pending}>{children}</Badge>;
+}
+function BrowserSkeleton() {
+  return (
+    <div className="flex flex-col gap-1 p-2">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 rounded-lg px-2 py-3">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <Skeleton className="h-3.5 w-3/4 rounded" />
+            <Skeleton className="h-2.5 w-1/2 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 async function api(path: string, options?: RequestInit) {
   const r = await fetch("/api/" + path, {
@@ -331,6 +362,10 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
   useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
+  // Bridge: notice state → Sonner toast (replaces the inline banner)
+  useEffect(() => {
+    if (notice) toast(notice);
+  }, [notice]);
   const [recovery, setRecovery] = useState<any>(null),
     [recoveryLoading, setRecoveryLoading] = useState(false);
   const pendingPreset = useRef<any>(null),
@@ -1428,6 +1463,7 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
   };
   const openHistory = () => document.getElementById("history")?.scrollIntoView({ behavior: "smooth", block: "start" });
   return (
+    <TooltipProvider>
     <SidebarProvider className="shell" style={{ "--sidebar-width": "15rem", "--sidebar-width-icon": "4rem" } as CSSProperties}>
       <FeatureSidebar mode={mode} busy={busy} connected={connected} userName={userName} selectFeature={selectFeature} openHistory={openHistory} openConfig={openConfig} openConnection={() => setConnectionOpen(true)} />
       <SidebarInset className="workspace-main">
@@ -1471,14 +1507,6 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
             Todos los anuncios se crean pausados
           </div>
         </section>
-        {notice && (
-          <div className="notice" role="status">
-            {notice}
-            <button onClick={() => setNotice("")} aria-label="Cerrar aviso">
-              ×
-            </button>
-          </div>
-        )}
         <div className="workspace-grid">
           <div className="editor">
             <section className="panel work-panel">
@@ -1497,11 +1525,13 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                     Guardar configuración
                   </button>
                   {preset && (
-                    <button
-                      className="icon-button"
-                      aria-label="Eliminar preset seleccionado"
-                      disabled={busy}
-                      onClick={async () => {
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="icon-button"
+                          aria-label="Eliminar preset seleccionado"
+                          disabled={busy}
+                          onClick={async () => {
                         try {
                           await api("presets", {
                             method: "DELETE",
@@ -1516,6 +1546,9 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                     >
                       <AppIcon icon={Trash2} size="secondary" />
                     </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Eliminar preset</TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
               )}
@@ -1658,9 +1691,10 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                     disabled={busy}
                   />
                   {structureError ? (
-                    <p className="error-detail" role="alert">
-                      {structureError}
-                    </p>
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertTriangle />
+                      <AlertDescription>{structureError}</AlertDescription>
+                    </Alert>
                   ) : (
                     <div className="structure-preview">
                       <p className="helper">
@@ -1695,6 +1729,7 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                       <strong>Campañas</strong>
                       <label className="search-field"><AppIcon icon={Search} size="secondary" /><input aria-label="Buscar campañas" value={campaignQuery} onChange={(e) => setCampaignQuery(e.target.value)} placeholder="Buscar campañas…" disabled={busy} /></label>
                       <div className="base-browser-list">
+
                         {visibleCampaigns.map((item) => (
                           <EntityRow key={item.id} item={item} icon={Folder} selected={campaign === item.id} disabled={busy} onClick={() => setCampaign(item.id)} />
                         ))}
@@ -1705,6 +1740,7 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                       <strong>Conjuntos</strong>
                       <label className="search-field"><AppIcon icon={Search} size="secondary" /><input aria-label="Buscar conjuntos" value={adsetQuery} onChange={(e) => setAdsetQuery(e.target.value)} placeholder="Buscar conjuntos…" disabled={!campaign || busy} /></label>
                       <div className="base-browser-list">
+
                         {visibleSets.map((item) => (
                           <EntityRow key={item.id} item={item} icon={Layers3} selected={adset === item.id} disabled={busy} onClick={() => setAdset(item.id)} />
                         ))}
@@ -1715,10 +1751,12 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                       <strong>Anuncios</strong>
                       <label className="search-field"><AppIcon icon={Search} size="secondary" /><input aria-label="Buscar anuncios" value={adQuery} onChange={(e) => setAdQuery(e.target.value)} placeholder="Buscar anuncios…" disabled={!adset || busy} /></label>
                       <div className="base-browser-list">
+                        {adset && !adsLoaded ? <BrowserSkeleton /> : <>
                         {visibleAds.map((item) => (
                           <EntityRow key={item.id} item={item} thumbnail selected={baseAdId === item.id} disabled={busy || !item.creative?.id} onClick={() => chooseBaseAd(item)} />
                         ))}
                         {adset && adsLoaded && !visibleAds.length && <p>Sin anuncios</p>}
+                        </>}
                       </div>
                     </div>
                   </div>
@@ -1759,7 +1797,7 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                       <h3>3. Definí cuántos conjuntos crear</h3>
                       <Picker label="Distribución" value={newSetStructure} onChange={setNewSetStructure} items={GROUPING_MODES.map((value) => ({ id: value, name: STRUCTURE_LABELS[value] }))} disabled={busy} />
                       {newSetStructure === "single" && <label className="field"><span>Nombre del nuevo conjunto</span><input value={placementAdsetName} onChange={(e) => setPlacementAdsetName(e.target.value)} placeholder="Ej. Creativos octubre" disabled={busy} /></label>}
-                      {placementStructureError ? <p className="error-detail">{placementStructureError}</p> : (
+                      {placementStructureError ? <Alert variant="destructive"><AlertTriangle /><AlertDescription>{placementStructureError}</AlertDescription></Alert> : (
                         <div className="structure-preview">
                           <p className="helper">{placementGroups.length} conjunto(s) nuevo(s) · {rows.length} anuncio(s)</p>
                           <ul>{placementGroups.map((group) => <li key={group.key}><strong>{group.name}</strong><span>{group.rowKeys.length} anuncio(s)</span></li>)}</ul>
@@ -2028,9 +2066,14 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                         placeholder="Nombre del anuncio"
                         disabled={busy}
                       />
-                      <button className="icon-button" aria-label="Eliminar anuncio" onClick={() => removeRow(row.key)} disabled={busy}>
-                        <AppIcon icon={Trash2} size="secondary" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button className="icon-button" aria-label="Eliminar anuncio" onClick={() => removeRow(row.key)} disabled={busy}>
+                            <AppIcon icon={Trash2} size="secondary" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Eliminar anuncio</TooltipContent>
+                      </Tooltip>
                     </div>
                     {mode === "campaign" && (
                       <div className="row-group">
@@ -2133,9 +2176,10 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                       </label>
                     )}
                     {row.uploadError && (
-                      <p className="error-detail" role="alert">
-                        <AppIcon icon={AlertTriangle} size="secondary" />{row.uploadError} · Volvé a elegir el archivo para reintentar.
-                      </p>
+                      <Alert variant="destructive">
+                        <AlertTriangle />
+                        <AlertDescription>{row.uploadError} · Volvé a elegir el archivo para reintentar.</AlertDescription>
+                      </Alert>
                     )}
                     {row.source !== "existing" && (
                       <label className="copy-toggle">
@@ -2354,7 +2398,7 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                             <small className="block">{new Date(run.created).toLocaleString("es-AR")}</small>
                           </TableCell>
                           <TableCell>
-                            <span className={"status " + s.badgeKey}>{s.badgeText}</span>
+                            <StatusBadge badgeKey={s.badgeKey}>{s.badgeText}</StatusBadge>
                           </TableCell>
                           <TableCell>
                             <strong className="result">{s.completed}/{s.expected}</strong>
@@ -2381,7 +2425,7 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
             {selectedRun && inspector && (
               <>
                 <div className="inspector-head">
-                  <span className={"status " + inspector.s.badgeKey}>{inspector.s.badgeText}</span>
+                  <StatusBadge badgeKey={inspector.s.badgeKey}>{inspector.s.badgeText}</StatusBadge>
                   <small>{new Date(selectedRun.created).toLocaleString("es-AR")}</small>
                 </div>
                 <SheetTitle className="inspector-title">{selectedRun.name}</SheetTitle>
@@ -2445,14 +2489,19 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
                             <div className="inspector-ad-body">
                               <div className="inspector-ad-top">
                                 <strong>{j.payload?.name}</strong>
-                                <span className={"status " + jobKey}>{jobText}</span>
+                                <StatusBadge badgeKey={jobKey}>{jobText}</StatusBadge>
                               </div>
                               {refId && <small className="inspector-id">ID: {refId}</small>}
                               {j.state?.error && (
                                 <div className="inspector-error">
-                                  <p className="error-detail"><AppIcon icon={AlertTriangle} size="secondary" />{j.state.error}</p>
-                                  {j.state.errorAction && <p className="error-action">{j.state.errorAction}</p>}
-                                  {j.state.trace && <small>Referencia Meta: {j.state.trace}</small>}
+                                  <Alert variant="destructive">
+                                    <AlertTriangle />
+                                    <AlertDescription>
+                                      {j.state.error}
+                                      {j.state.errorAction && <p className="error-action">{j.state.errorAction}</p>}
+                                      {j.state.trace && <small>Referencia Meta: {j.state.trace}</small>}
+                                    </AlertDescription>
+                                  </Alert>
                                 </div>
                               )}
                               <div className="run-actions">
@@ -2497,11 +2546,6 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
             <DialogTitle>Conectá tu cuenta de Meta</DialogTitle>
             <DialogDescription>Usá el token de usuario de tu app con ads_management y ads_read. Se guarda cifrado en el servidor.</DialogDescription>
           </DialogHeader>
-          {notice && (
-            <p className="helper" role="status">
-              {notice}
-            </p>
-          )}
           <label className="field">
             <span>Token de usuario</span>
             <input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Pegá el token acá, no en el chat" />
@@ -2578,11 +2622,6 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
             <DialogTitle>Configuración</DialogTitle>
             <DialogDescription>Configurá tu app de Meta y elegí las cuentas que usás en este espacio.</DialogDescription>
           </DialogHeader>
-          {notice && (
-            <p className="helper" role="status">
-              {notice}
-            </p>
-          )}
           <section>
             <h3>Token de Meta</h3>
             {connected && (
@@ -2884,5 +2923,6 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
         </DialogContent>
       </Dialog>
     </SidebarProvider>
+    </TooltipProvider>
   );
 }
