@@ -269,4 +269,4 @@ snapshot before starting the older image.
 
 - Schedule the daily `npm run media:cleanup` described in
   [docs/architecture/self-hosted.md](../docs/architecture/self-hosted.md).
-- Create the first administrator with `npm run admin:create`.
+- Create the first administrator through the Web Setup Wizard (`/setup`) upon opening the web app for the first time, or headlessly via `npm run admin:create`.
