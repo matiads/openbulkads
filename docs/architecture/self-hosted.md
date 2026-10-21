@@ -2,8 +2,10 @@
 
 OpenBulkAds is an independent, self-hosted product built on the official Next.js
 Node.js runtime, Better Auth (closed registration), PostgreSQL/Drizzle, and
-private persistent local media. It is designed to run **only behind a private
-network/VPN**, never as a public SaaS.
+private persistent local media. The supported deployment runs **behind a private
+network/VPN**, never as a public SaaS. Publishing a single instance under a
+public domain is an advanced, operator-owned option; its minimum requirements
+are in [SECURITY.md](../../SECURITY.md#alcance).
 
 ## Scope and behavior contract
 
@@ -91,6 +93,7 @@ the same snapshot when rolling back.
   off-host replication, or scale requires it; retain the media contract.
 - **Multi-replica:** defer until shared media, distributed job claims/cleanup
   ownership, and session consistency are proven.
-- **Public exposure:** requires a separate security review for ingress,
-  abuse/rate limits, provisioning, and operations. VPN-only is the initial
-  boundary.
+- **Supported public exposure:** making a public domain a supported deployment
+  requires a separate security review for ingress, abuse/rate limits,
+  provisioning, and operations. Until then the VPN is the supported boundary
+  and public domains remain operator-owned (see SECURITY.md).

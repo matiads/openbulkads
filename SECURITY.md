@@ -23,10 +23,24 @@ cuentas de Meta en el reporte.
 
 ## Alcance
 
-OpenBulkAds está diseñado para desplegarse **solo detrás de una VPN/red privada**,
-nunca expuesto a internet. Las consideraciones de seguridad asumen ese modelo de
-despliegue. Exponer la aplicación públicamente queda fuera del alcance soportado y
-requiere una revisión de seguridad propia.
+El despliegue **recomendado y soportado** es detrás de una VPN/red privada (por
+ejemplo Tailscale). Las consideraciones de seguridad de este documento asumen ese
+modelo.
+
+Publicar la aplicación bajo un dominio en internet es una **opción avanzada, bajo
+tu responsabilidad**. Si lo hacés, como mínimo:
+
+- Completá el asistente `/setup` (o `npm run admin:create`) **antes** de exponerla:
+  hasta que exista el primer usuario, cualquiera que llegue a la URL puede crear
+  la cuenta administradora.
+- Servila solo por HTTPS y con `BETTER_AUTH_URL` apuntando a esa URL `https://`.
+- Mantené PostgreSQL y el puerto de la app fuera de internet; publicá solo el
+  reverse proxy.
+- Considerá una capa de acceso adicional delante (Cloudflare Access, autenticación
+  del proxy, allowlist de IPs) y límites de tasa en el proxy.
+
+Los reportes sobre despliegues públicos son bienvenidos, pero el endurecimiento de
+ese entorno (ingress, rate limits, WAF) queda a cargo de quien lo opera.
 
 ## Buenas prácticas de despliegue
 

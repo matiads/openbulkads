@@ -58,3 +58,27 @@ test('assertSetupAllowed fails closed with 403 when users already exist', async 
     }
   );
 });
+
+test('setup wizard loads ad accounts through the supported accounts query', async () => {
+  const { setupAccountsPath, setupAccountsFromResponse } = await import('../app/setup/setup-accounts');
+  assert.equal(setupAccountsPath, 'meta?kind=accounts');
+  const response = {
+    data: [],
+    available: [
+      { id: 'act_1', name: 'Activa', account_status: 1 },
+      { id: 'act_2', name: 'Deshabilitada', account_status: 2 },
+    ],
+    selectedAccounts: [],
+  };
+  assert.deepEqual(setupAccountsFromResponse(response), {
+    accounts: response.available,
+    selected: ['act_1'],
+  });
+});
+
+test('setup wizard selects every account when none is active', async () => {
+  const { setupAccountsFromResponse } = await import('../app/setup/setup-accounts');
+  const available = [{ id: 'act_3', name: 'Pendiente', account_status: 3 }];
+  assert.deepEqual(setupAccountsFromResponse({ data: available }), { accounts: available, selected: ['act_3'] });
+  assert.deepEqual(setupAccountsFromResponse({}), { accounts: [], selected: [] });
+});

@@ -4,9 +4,9 @@ import { resolveAllowedDevOrigins } from '../lib/dev-origins';
 
 test('resolveAllowedDevOrigins extracts hostname from BETTER_AUTH_URL', () => {
   const origins = resolveAllowedDevOrigins({
-    BETTER_AUTH_URL: 'http://dev.tail4861b.ts.net:3000',
+    BETTER_AUTH_URL: 'http://devbox.example.ts.net:3000',
   });
-  assert.deepEqual(origins, ['dev.tail4861b.ts.net']);
+  assert.deepEqual(origins, ['devbox.example.ts.net']);
 });
 
 test('resolveAllowedDevOrigins ignores localhost and loopback IP from BETTER_AUTH_URL', () => {

@@ -15,3 +15,14 @@ export function targetSetId(input: {
   if (!input.selectedAdsets.length) return "";
   return input.selectedAdsets[input.index % input.selectedAdsets.length];
 }
+
+// Suggested names for new structure are prefilled in the form; a run plan only keeps
+// the ones it will actually create, so history shows real names for existing structure.
+export function plannedStructureNames(
+  placement: Placement,
+  names: { campaignName: string; adsetName: string },
+): { campaignName?: string; adsetName?: string } {
+  if (placement === "campaign") return names;
+  if (placement === "adset") return { adsetName: names.adsetName };
+  return {};
+}

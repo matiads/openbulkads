@@ -1016,3 +1016,11 @@ test("Preparation failure remains recoverable without allowing retries of ambigu
     /targeting, promoted_object, billing_event/,
   );
 });
+
+test('run plans only name the structure they create', async () => {
+  const { plannedStructureNames } = await import('../lib/upload-plan');
+  const names = { campaignName: 'Primavera · copia', adsetName: 'Amplio · copia' };
+  assert.deepEqual(plannedStructureNames('ads', names), {});
+  assert.deepEqual(plannedStructureNames('adset', names), { adsetName: 'Amplio · copia' });
+  assert.deepEqual(plannedStructureNames('campaign', names), names);
+});
