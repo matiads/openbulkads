@@ -109,6 +109,7 @@ Tu información está en dos lugares. Guardá copias de los dos:
 
    ```bash
    cd ~/openbulkads
+   umask 077   # el backup contiene tokens cifrados y usuarios: que solo vos puedas leerlo
    docker compose exec -T postgres pg_dump --clean --if-exists -U openbulkads openbulkads > backup-$(date +%F).sql
    ```
 
