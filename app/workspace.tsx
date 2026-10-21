@@ -23,7 +23,7 @@ import { looksLikeLocalFilePath, LOCAL_PATH_DRIVE_MESSAGE } from "@/lib/file-nam
 import { buildGroups, GROUPING_MODES, STRUCTURE_LABELS } from "@/lib/campaign-build";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { targetSetId } from "@/lib/upload-plan";
+import { plannedStructureNames, targetSetId } from "@/lib/upload-plan";
 import { mediaLimitMb } from "@/lib/media-limit";
 import { clientId } from "@/lib/client-id";
 type Item = { id: string; name: string; [k: string]: any };
@@ -1260,7 +1260,7 @@ export default function AdsWorkspace({ nodeRuntime = false }: { nodeRuntime?: bo
             model: modelInfo?.supported ? model : undefined,
           };
         });
-        await api("jobs", { method: "POST", body: JSON.stringify({ kind: "run-plan", runId, runName, runTotal, account, campaign, adset, placement, campaignName: placementCampaignName, adsetName: placementAdsetName, structureGroups, ads: plannedAds }) });
+        await api("jobs", { method: "POST", body: JSON.stringify({ kind: "run-plan", runId, runName, runTotal, account, campaign, adset, placement, ...plannedStructureNames(placement, { campaignName: placementCampaignName, adsetName: placementAdsetName }), structureGroups, ads: plannedAds }) });
         const targetSets = new Map<string, string>();
         let targetCampaign = campaign;
         for (let i = 0; i < structureGroups.length; i++) {
