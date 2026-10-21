@@ -50,6 +50,10 @@ No hace falta ser técnico para **usarlo**. Para **instalarlo** sí conviene una
 2. **Elegís los archivos o links** y a qué campaña o conjunto van.
 3. **OpenBulkAds crea los anuncios en pausa.** Vos los revisás y activás desde Ads Manager cuando quieras.
 
+<p align="center"><img src="docs/demo.gif" alt="OpenBulkAds creando anuncios de Meta en lote, en pausa" width="100%"></p>
+
+<p align="center"><sub>Demo con datos ficticios: 3 anuncios creados en pausa en pocos clics.</sub></p>
+
 ## Pensado para no romper nada
 
 OpenBulkAds es deliberadamente cuidadoso con tu cuenta:
