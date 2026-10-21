@@ -9,14 +9,9 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import { setupAccountsFromResponse, setupAccountsPath, type SetupAccount as MetaAccount } from "./setup-accounts";
 
 type Step = 1 | 2 | 3 | 4;
-
-interface MetaAccount {
-  id: string;
-  name: string;
-  account_status?: number;
-}
 
 export default function SetupWizard() {
   const router = useRouter();
@@ -124,12 +119,10 @@ export default function SetupWizard() {
   async function fetchAccounts() {
     setLoadingAccounts(true);
     try {
-      const res = await api("meta?path=me/adaccounts&fields=id,name,account_status");
-      const list: MetaAccount[] = res.data || [];
-      setAccounts(list);
       // Select all active accounts by default
-      const active = list.filter((a) => a.account_status === 1).map((a) => a.id);
-      setSelectedAccounts(active.length > 0 ? active : list.map((a) => a.id));
+      const { accounts: list, selected } = setupAccountsFromResponse(await api(setupAccountsPath));
+      setAccounts(list);
+      setSelectedAccounts(selected);
     } catch {
       // If accounts fail to load, user can configure them later
     } finally {
