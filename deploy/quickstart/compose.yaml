@@ -1,0 +1,101 @@
+# All-in-one stack for a single VPS, server or PC (the "quickstart").
+#
+# Lives in deploy/quickstart/ (not at the repo root) so it never competes with
+# compose.dev.yaml / compose.local.yaml / compose.prod.yaml. `install.sh` saves
+# it as ~/openbulkads/compose.yaml next to the generated `.env`.
+#
+#   postgres    PostgreSQL 16 on a named volume
+#   media-init  one-shot: makes the media volume writable by uid 1000
+#   migrate     one-shot: applies the database migrations
+#   app         the OpenBulkAds server, published on 127.0.0.1 by default
+#
+# Every value comes from the `.env` next to this file; no secret is written
+# here. Required keys (the config fails closed when one is missing):
+#   POSTGRES_PASSWORD, BETTER_AUTH_SECRET, TOKEN_ENCRYPTION_KEY, BETTER_AUTH_URL
+# Optional:
+#   OPENBULKADS_IMAGE  image to run (default ghcr.io/matiads/openbulkads:latest)
+#   OPENBULKADS_BIND   host address to publish on (default 127.0.0.1)
+#   OPENBULKADS_PORT   host port (default 3000)
+
+# Distinct from the repo's dev stack so both can coexist on one machine.
+name: openbulkads-quickstart
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openbulkads
+      POSTGRES_DB: openbulkads
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # TCP, not the socket: the image's temporary initdb server is socket-only.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U openbulkads -d openbulkads"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # A fresh named volume is root-owned (the image has no media directory), but
+  # the app runs as uid 1000. This step fixes ownership before the app starts.
+  media-init:
+    image: ${OPENBULKADS_IMAGE:-ghcr.io/matiads/openbulkads:latest}
+    user: "0:0"
+    command: ["sh", "-c", "chown 1000:1000 /var/lib/openbulkads/media && chmod 700 /var/lib/openbulkads/media"]
+    restart: "no"
+    volumes:
+      - media:/var/lib/openbulkads/media
+
+  migrate:
+    image: ${OPENBULKADS_IMAGE:-ghcr.io/matiads/openbulkads:latest}
+    command: ["node", "scripts/container-start.mjs", "--migrate-only"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      MIGRATION_DATABASE_URL: postgresql://openbulkads:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/openbulkads
+
+  app:
+    image: ${OPENBULKADS_IMAGE:-ghcr.io/matiads/openbulkads:latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      media-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${OPENBULKADS_BIND:-127.0.0.1}:${OPENBULKADS_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      MEDIA_STORAGE: local
+      MEDIA_ROOT: /var/lib/openbulkads/media
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL must be set in .env}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?TOKEN_ENCRYPTION_KEY must be set in .env}
+      DATABASE_URL: postgresql://openbulkads:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/openbulkads
+    volumes:
+      - media:/var/lib/openbulkads/media
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:
+  media:

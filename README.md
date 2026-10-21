@@ -74,17 +74,55 @@ OpenBulkAds is a **free, open-source, self-hosted tool to create Meta (Facebook/
 - **Safe by design:** it never activates, deletes, or edits existing ads, and it never auto-retries an uncertain operation, to avoid duplicates.
 - **Your infrastructure:** your Meta token (encrypted at rest) and your media never leave your servers. Recommended deployment is a private network or VPN such as Tailscale.
 
+**Install in one command** (needs Docker; runs on a PC, server or VPS, listens on `127.0.0.1` by default; open `/setup` right away to create the first admin):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/matiads/openbulkads/main/install.sh | sh
+```
+
+See [docs/deploy.md](docs/deploy.md) (Spanish) or, for AI agents, [INSTALL-AGENT.md](INSTALL-AGENT.md).
+
 The UI and the setup guide below are in Spanish; the commands are the same in any language. Production deployment is documented in English in [deploy/README.md](deploy/README.md). OpenBulkAds is an independent project and is not affiliated with or endorsed by Meta.
 
 ---
 
 ## Instalación y despliegue (parte técnica)
 
+### Instalación en un comando
+
+Con [Docker](https://docs.docker.com/get-docker/) instalado (en tu PC, un servidor o un VPS):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/matiads/openbulkads/main/install.sh | sh
+```
+
+- Baja la imagen publicada y arma la app con su base de datos PostgreSQL, en `~/openbulkads`.
+- Genera claves seguras en un `.env` (solo la primera vez; volver a correrlo no las cambia).
+- Espera a que esté lista y te muestra la dirección: **abrí `/setup` y completalo enseguida**, porque hasta crear el primer administrador está abierto a cualquiera que llegue a esa dirección.
+
+Por defecto solo escucha en tu propia máquina (`127.0.0.1`). La guía paso a paso (acceso con Tailscale, actualizar, backup, desinstalar) está en [docs/deploy.md](docs/deploy.md).
+
+### ¿Querés que un agente lo instale?
+
+Pegale esto a tu agente de IA (Claude Code, Codex, etc.):
+
+```text
+Instalá OpenBulkAds siguiendo las instrucciones de https://raw.githubusercontent.com/matiads/openbulkads/main/INSTALL-AGENT.md y avisame cuando tenga que completar /setup.
+```
+
+Las instrucciones para agentes están en [INSTALL-AGENT.md](INSTALL-AGENT.md): el agente verifica cada paso, nunca muestra tus claves y te deja el `/setup` a vos.
+
+### Otras modalidades de despliegue
+
 OpenBulkAds ofrece dos modalidades de acceso según tu infraestructura:
-1. **Red privada / VPN (Recomendado):** pensado para correr dentro de tu red privada (por ejemplo con [Tailscale](https://tailscale.com/)), manteniendo la app y tus datos completamente aislados de internet.
+1. **Red privada / VPN (Recomendado):** pensado para correr dentro de tu red privada (por ejemplo con [Tailscale](https://tailscale.com/)), manteniendo la app y tus datos completamente aislados de internet. El stack privado completo con Caddy está en [deploy/README.md](deploy/README.md).
 2. **Dominio con Reverse Proxy (avanzado, bajo tu responsabilidad):** para desplegar en tu propio servidor o VPS detrás de Caddy, Nginx, Traefik o Cloudflare Tunnel.
 
 ---
+
+### Desarrollo local
+
+Lo que sigue es para desarrollar o contribuir al código.
 
 ### Requisitos
 

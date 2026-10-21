@@ -1,5 +1,7 @@
 # Private deployment (Caddy + Compose)
 
+> Looking for the simple path? Most users want the one-command install in [docs/deploy.md](../docs/deploy.md) (all-in-one stack in [`quickstart/`](quickstart/compose.yaml)). This page is the advanced private VPN stack.
+
 This directory holds the reference deployment assets for the self-hosted
 OpenBulkAds stack. Caddy is a **deployment recommendation**, not an application
 dependency: the app image runs on its own and can sit behind another private

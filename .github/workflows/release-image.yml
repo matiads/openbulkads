@@ -1,0 +1,85 @@
+name: Release image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to publish, e.g. v0.2.0 (never moves :latest)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish image to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      # Tag v1.2.3 -> 1.2.3. Stable tags also get :major.minor; prereleases
+      # (1.2.3-rc.1) publish only their exact tag. :latest moves only for a
+      # stable, non-prerelease *release* event, never on manual runs.
+      - name: Resolve version
+        id: version
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          EVENT: ${{ github.event_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          version="${TAG#v}"
+          if ! echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "Tag must look like v1.2.3 or v1.2.3-rc.1, got: $TAG" >&2
+            exit 1
+          fi
+          stable=true
+          case "$version" in *-*) stable=false ;; esac
+          latest=false
+          if [ "$stable" = true ] && [ "$EVENT" = release ] && [ "$PRERELEASE" != true ]; then latest=true; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "major_minor=$(echo "$version" | cut -d. -f1,2)" >> "$GITHUB_OUTPUT"
+          echo "stable=$stable" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/matiads/openbulkads
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ steps.version.outputs.major_minor }},enable=${{ steps.version.outputs.stable == 'true' }}
+            type=raw,value=latest,enable=${{ steps.version.outputs.latest == 'true' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/matiads/openbulkads
+            org.opencontainers.image.description=Self-hosted bulk ad creation for Meta (always paused)
+            org.opencontainers.image.licenses=MIT
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
