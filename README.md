@@ -12,6 +12,10 @@
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-6b4fbb.svg">
 </p>
 
+<p align="center">
+  <a href="#in-english">English summary below</a>
+</p>
+
 ---
 
 ## ¿Qué es OpenBulkAds?
@@ -56,13 +60,25 @@ OpenBulkAds es deliberadamente cuidadoso con tu cuenta:
 
 Creativos nuevos soportados hoy: **sitio web, WhatsApp e Instagram Direct**. Carruseles, formularios, catálogos y creativos dinámicos requieren adaptación.
 
+## In English
+
+OpenBulkAds is a **free, open-source, self-hosted tool to create Meta (Facebook/Instagram) ads in bulk**. Connect a Meta user token with `ads_management` and `ads_read`, pick your files or public Google Drive links and the target campaign or ad set, and OpenBulkAds creates the ads, always **paused**, so you can review them in Ads Manager before going live.
+
+- **Bulk ad creation:** up to 20 ads per run, reusing a creative or uploading images (JPG/PNG) and videos (MP4/MOV, up to 250 MB).
+- **Campaign copy and campaign-from-template:** duplicate a campaign with its ad sets (without the ads), or build a new one from an ad set that already works.
+- **Presets and full history:** reusable presets per ad account and a run history with Meta IDs and errors.
+- **Safe by design:** it never activates, deletes, or edits existing ads, and it never auto-retries an uncertain operation, to avoid duplicates.
+- **Your infrastructure:** your Meta token (encrypted at rest) and your media never leave your servers. Recommended deployment is a private network or VPN such as Tailscale.
+
+The UI and the setup guide below are in Spanish; the commands are the same in any language. Production deployment is documented in English in [deploy/README.md](deploy/README.md). OpenBulkAds is an independent project and is not affiliated with or endorsed by Meta.
+
 ---
 
 ## Instalación y despliegue (parte técnica)
 
 OpenBulkAds ofrece dos modalidades de acceso según tu infraestructura:
 1. **Red privada / VPN (Recomendado):** pensado para correr dentro de tu red privada (por ejemplo con [Tailscale](https://tailscale.com/)), manteniendo la app y tus datos completamente aislados de internet.
-2. **Dominio con Reverse Proxy:** para desplegar en tu propio servidor o VPS detrás de Caddy, Nginx, Traefik o Cloudflare Tunnel.
+2. **Dominio con Reverse Proxy (avanzado, bajo tu responsabilidad):** para desplegar en tu propio servidor o VPS detrás de Caddy, Nginx, Traefik o Cloudflare Tunnel.
 
 ---
 
@@ -184,8 +200,11 @@ docker compose -f compose.prod.yaml build
 docker compose -f compose.prod.yaml up -d
 ```
 
-#### Opción B: Dominio público con Reverse Proxy
+#### Opción B: Dominio público con Reverse Proxy (avanzado)
+> **Bajo tu responsabilidad.** El modelo soportado es la red privada (Opción A). Antes de exponer la app a internet, leé los requisitos mínimos en [SECURITY.md](SECURITY.md#alcance) — en particular, completá `/setup` **antes** de publicarla: hasta que exista el primer usuario, cualquiera que llegue a la URL puede crear la cuenta administradora.
+
 Si publicás OpenBulkAds bajo un dominio (ej. `https://ads.mi-dominio.com`):
+- Servila solo por HTTPS y mantené PostgreSQL y el puerto de la app fuera de internet.
 - Configurá `APP_DOMAIN=ads.mi-dominio.com` y `BETTER_AUTH_URL=https://ads.mi-dominio.com`.
 - Si ubicás otro reverse proxy por delante (Nginx, Traefik, Caddy), asegurate de subir el límite de carga de archivos (ej. `client_max_body_size 260m;` en Nginx) para permitir la subida de videos pesados según `NEXT_PUBLIC_MEDIA_LIMIT_MB`.
 
