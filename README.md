@@ -129,7 +129,7 @@ Lo que sigue es para desarrollar o contribuir al código.
 - Node.js >= 22.13
 - PostgreSQL 16 (para desarrollo hay uno listo en Docker)
 - Docker + Docker Compose (para el despliegue de referencia)
-- Un token de usuario de Meta con permisos `ads_management` y `ads_read`
+- Un token de usuario de Meta con permisos `ads_management` y `ads_read`. Seguí la [guía para generar, conectar y extender el token de Meta](docs/meta-token.md).
 
 ---
 
